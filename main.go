@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"os/signal"
 	"syscall"
 	"time"
@@ -20,11 +21,11 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 
 	defer cancel()
-	WatchVsResource(cs, ctx.Done())
+	WatchResource(cs, ctx.Done())
 
 }
 
-func WatchVsResource(cs dynamic.Interface, stop <-chan struct{}) {
+func WatchResource(cs dynamic.Interface, stop <-chan struct{}) {
 
 	var vsResource = schema.GroupVersionResource{
 		Group:    "networking.istio.io",
@@ -32,17 +33,61 @@ func WatchVsResource(cs dynamic.Interface, stop <-chan struct{}) {
 		Resource: "virtualservices",
 	}
 
-	dynInformer := dynamicinformer.NewDynamicSharedInformerFactory(cs, time.Minute*10)
-	informer := dynInformer.ForResource(vsResource).Informer()
+	var certResource = schema.GroupVersionResource{
+		Group:    "cert-manager.io",
+		Version:  "v1alpha2",
+		Resource: "certificates",
+	}
 
-	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	dynInformer := dynamicinformer.NewDynamicSharedInformerFactory(cs, time.Minute*10)
+
+	vsInformer := dynInformer.ForResource(vsResource).Informer()
+	certInformer := dynInformer.ForResource(certResource).Informer()
+
+	certInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			uo, ok := obj.(*unstructured.Unstructured)
 			if !ok {
-				panic("uo get nothing")
+				panic("obj interface assert centInformer failed")
 			}
 			if uo.GetNamespace() == "shencq" {
-				fmt.Printf("cache add vs %s/%s\n", uo.GetName(), uo.GetNamespace())
+				log.Printf("cache add cert manager %s/%s\n", uo.GetName(), uo.GetNamespace())
+			}
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			oldC, ok1 := oldObj.(*unstructured.Unstructured)
+			newC, ok2 := oldObj.(*unstructured.Unstructured)
+
+			if !ok1 || !ok2 {
+				return
+			}
+
+			//
+			oldDnsNames, ok1, _ := unstructured.NestedStringSlice(oldC.Object, "spec", "dnsNames")
+			if ok1 {
+				log.Printf(" %s/%s updated with DnsNames=%v\n", oldC.GetName(), oldC.GetNamespace(), oldDnsNames)
+			}
+
+			newSomeStr, ok2, err := unstructured.NestedStringSlice(newC.Object, "spec", "gateway")
+			if err != nil || !ok2 {
+				log.Printf("newC get gateway not found or err: %v\n", err)
+			}
+
+			if ok2 {
+				log.Printf("newC get gateway string = %v\n", newSomeStr)
+			}
+
+		},
+	})
+
+	vsInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			uo, ok := obj.(*unstructured.Unstructured)
+			if !ok {
+				panic("obj interface assert vsInformer failed")
+			}
+			if uo.GetNamespace() == "shencq" {
+				log.Printf("cache add vs %s/%s\n", uo.GetName(), uo.GetNamespace())
 			}
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
@@ -57,7 +102,7 @@ func WatchVsResource(cs dynamic.Interface, stop <-chan struct{}) {
 			oldGw, ok1, _ := unstructured.NestedStringSlice(oldV.Object, "spec", "gateways")
 			_, _, _ = unstructured.NestedStringSlice(newV.Object, "spec", "gateways")
 			if ok1 {
-				fmt.Printf("%v\n", oldGw)
+				log.Printf("vs %s/%s updated with gw=%v\n", oldV.GetName(), oldV.GetNamespace(), oldGw)
 			}
 
 		},
@@ -66,10 +111,7 @@ func WatchVsResource(cs dynamic.Interface, stop <-chan struct{}) {
 	dynInformer.Start(stop)
 	dynInformer.WaitForCacheSync(stop)
 
-	select {
-	case <-stop:
-		fmt.Println("vsInformer received stopped signal, exitting...")
-		return
-	}
+	<-stop
+	fmt.Println("vsInformer received stopped signal, exitting...")
 
 }

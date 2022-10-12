@@ -1,9 +1,9 @@
-module github.com/Tsingshen/istioinformer
+module github.com/Tsingshen/dynamicinformer
 
 go 1.18
 
 require (
-	github.com/Tsingshen/k8scrd v0.0.1
+	github.com/Tsingshen/k8scrd v0.0.2
 	k8s.io/apimachinery v0.24.2
 	k8s.io/client-go v0.24.2
 )

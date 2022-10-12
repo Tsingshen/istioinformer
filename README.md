@@ -1,1 +1,1 @@
-## istio informer usage
+## dynamic informer usage
