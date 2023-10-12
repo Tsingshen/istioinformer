@@ -48,7 +48,8 @@ func WatchResource(cs dynamic.Interface, stop <-chan struct{}) {
 		AddFunc: func(obj interface{}) {
 			uo, ok := obj.(*unstructured.Unstructured)
 			if !ok {
-				panic("obj interface assert centInformer failed")
+				log.Println("obj add, interface assert centInformer failed")
+				return
 			}
 			if uo.GetNamespace() == "shencq" {
 				log.Printf("cache add cert manager %s/%s\n", uo.GetName(), uo.GetNamespace())
@@ -59,6 +60,7 @@ func WatchResource(cs dynamic.Interface, stop <-chan struct{}) {
 			newC, ok2 := oldObj.(*unstructured.Unstructured)
 
 			if !ok1 || !ok2 {
+				log.Println("obj update, interface assert centInformer failed")
 				return
 			}
 
@@ -84,7 +86,8 @@ func WatchResource(cs dynamic.Interface, stop <-chan struct{}) {
 		AddFunc: func(obj interface{}) {
 			uo, ok := obj.(*unstructured.Unstructured)
 			if !ok {
-				panic("obj interface assert vsInformer failed")
+				log.Println("vs add, interface assert vsInformer failed")
+				return
 			}
 			if uo.GetNamespace() == "shencq" {
 				log.Printf("cache add vs %s/%s\n", uo.GetName(), uo.GetNamespace())
@@ -95,6 +98,7 @@ func WatchResource(cs dynamic.Interface, stop <-chan struct{}) {
 			newV, ok2 := oldObj.(*unstructured.Unstructured)
 
 			if !ok1 || !ok2 {
+				log.Println("vs update, interface assert vsInformer failed")
 				return
 			}
 
